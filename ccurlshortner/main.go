@@ -61,9 +61,9 @@ func main() {
 }
 
 func redirectUrl(w http.ResponseWriter, r *http.Request) {
-	surl := r.PathValue("surl")
+	surl := r.URL.Path[1:]
 
-	lurl, err := queries.SelectShortUrl(ctx, surl)
+	lurl, err := queries.SelectLongUrl(ctx, surl)
 	if err != nil {
 		http.Error(w, "URL not found", http.StatusBadRequest)
 		log.Fatal(err)
@@ -114,7 +114,7 @@ func shortUrl(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteUrl(w http.ResponseWriter, r *http.Request) {
-	durl := r.PathValue("durl")
+	durl := r.URL.Path[1:]
 
 	err := queries.DeleteUrl(ctx, durl)
 	if err != nil {

@@ -4,13 +4,13 @@ INSERT INTO
 VALUES
     (?, ?, ?) RETURNING *;
 
--- name: SelectShortUrl :one
+-- name: SelectLongUrl :one
 SELECT
     longurl
 FROM
     url
 WHERE
-    shorturl = ?;
+    key = ?;
 
 -- name: DeleteUrl :exec
 DELETE FROM url

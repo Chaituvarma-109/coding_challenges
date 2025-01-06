@@ -40,17 +40,17 @@ func (q *Queries) DeleteUrl(ctx context.Context, key string) error {
 	return err
 }
 
-const selectShortUrl = `-- name: SelectShortUrl :one
+const selectLongUrl = `-- name: SelectLongUrl :one
 SELECT
     longurl
 FROM
     url
 WHERE
-    shorturl = ?
+    key = ?
 `
 
-func (q *Queries) SelectShortUrl(ctx context.Context, shorturl string) (string, error) {
-	row := q.db.QueryRowContext(ctx, selectShortUrl, shorturl)
+func (q *Queries) SelectLongUrl(ctx context.Context, key string) (string, error) {
+	row := q.db.QueryRowContext(ctx, selectLongUrl, key)
 	var longurl string
 	err := row.Scan(&longurl)
 	return longurl, err
