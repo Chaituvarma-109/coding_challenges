@@ -1,33 +1,55 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
+	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
+
+	_ "modernc.org/sqlite"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/urlshortner/urldb"
 )
-
-type UrlShortResp struct {
-	Key      string `json:"key"`
-	LongUrl  string `json:"long_url"`
-	ShortUrl string `json:"short_url"`
-}
 
 type UrlRequest struct {
 	Url string `json:"url" validate:"required,url"`
 }
 
 var (
-	u         UrlRequest
-	urls             = []UrlShortResp{}
-	inputFile string = "urls.json"
+	u UrlRequest
+	//go:embed schema.sql
+	ddl     string
+	queries *urldb.Queries
+	ctx     context.Context
 )
 
 func main() {
+	ctx = context.Background()
+
+	db, err := sql.Open("sqlite", "file:test.db")
+	if err != nil {
+		log.Fatal("cannot create db", err)
+		return
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		log.Fatal("Cannot ping database:", err)
+	}
+
+	if _, err := db.ExecContext(ctx, ddl); err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	queries = urldb.New(db)
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/{surl}", redirectUrl)
@@ -39,21 +61,16 @@ func main() {
 }
 
 func redirectUrl(w http.ResponseWriter, r *http.Request) {
-	urlkeyfound := false
 	surl := r.PathValue("surl")
 
-	urls := unmarshallfile(inputFile)
-	for _, url := range urls {
-		if url.Key == surl {
-			http.Redirect(w, r, url.LongUrl, 200)
-			urlkeyfound = true
-			break
-		}
+	lurl, err := queries.SelectShortUrl(ctx, surl)
+	if err != nil {
+		http.Error(w, "URL not found", http.StatusBadRequest)
+		log.Fatal(err)
+		return
 	}
 
-	if !urlkeyfound {
-		http.Error(w, "URL not found", http.StatusBadRequest)
-	}
+	http.Redirect(w, r, lurl, http.StatusSeeOther)
 }
 
 func shortUrl(w http.ResponseWriter, r *http.Request) {
@@ -76,13 +93,16 @@ func shortUrl(w http.ResponseWriter, r *http.Request) {
 	shortUrl := fmt.Sprintf("http://localhost:8000/%x", key[:12])
 	var nkey string = fmt.Sprintf("%x", key[:12])
 
-	resp := &UrlShortResp{
+	resp, err := queries.CreateUrl(ctx, urldb.CreateUrlParams{
 		Key:      nkey,
-		LongUrl:  u.Url,
-		ShortUrl: shortUrl,
+		Longurl:  string(u.Url),
+		Shorturl: shortUrl,
+	})
+	if err != nil {
+		log.Fatal(err)
+		return
 	}
 
-	writeToFile(resp)
 	urlResp, err := json.Marshal(resp)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -96,44 +116,11 @@ func shortUrl(w http.ResponseWriter, r *http.Request) {
 func deleteUrl(w http.ResponseWriter, r *http.Request) {
 	durl := r.PathValue("durl")
 
-	urls := unmarshallfile(inputFile)
-	for ind, url := range urls {
-		if url.Key == durl {
-			urls = append(urls[:ind], urls[ind+1:]...)
-			updatedUrls, err := json.MarshalIndent(urls, "", " ")
-			if err != nil {
-				log.Fatal(err)
-			}
-			os.WriteFile(inputFile, updatedUrls, 0644)
-			break
-		}
+	err := queries.DeleteUrl(ctx, durl)
+	if err != nil {
+		log.Fatal(err)
+		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func writeToFile(data *UrlShortResp) {
-	urls := unmarshallfile(inputFile)
-	urls = append(urls, *data)
-	updatedUrls, err := json.MarshalIndent(urls, "", " ")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	os.WriteFile(inputFile, updatedUrls, 0644)
-}
-
-func unmarshallfile(f string) []UrlShortResp {
-	file, err := os.ReadFile(f)
-	if err != nil && !os.IsNotExist(err) {
-		log.Fatal(err)
-	}
-
-	if len(file) > 0 {
-		err = json.Unmarshal(file, &urls)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-	return urls
 }
