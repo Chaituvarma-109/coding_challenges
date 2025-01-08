@@ -1,0 +1,107 @@
+definitions:
+  main.UrlRequest:
+    description: Request for creating shorturl
+    properties:
+      url:
+        description: url like "www.example.com", "www.google.com"
+        type: string
+    required:
+    - url
+    type: object
+  urldb.Url:
+    properties:
+      key:
+        type: string
+      longurl:
+        type: string
+      shorturl:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: This is a Url Shortner api.
+  termsOfService: http://swagger.io/terms/
+  title: Urlshortner API
+  version: "1.0"
+paths:
+  /{durl}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete Url given its shorturl
+      parameters:
+      - description: url to delete
+        in: path
+        name: durl
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      summary: Delete Url
+      tags:
+      - Urls
+  /{surl}:
+    get:
+      consumes:
+      - application/json
+      description: Redirect given short Url to original or long url
+      parameters:
+      - description: url to redirect
+        in: path
+        name: surl
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "302":
+          description: Found
+          schema:
+            type: string
+        "404":
+          description: Not Found
+          schema:
+            type: string
+      summary: Redirect Url
+      tags:
+      - Urls
+  /createurl:
+    post:
+      consumes:
+      - application/json
+      description: Create Short Url from Long or Original Url
+      parameters:
+      - description: this long or original url
+        in: body
+        name: Url
+        required: true
+        schema:
+          $ref: '#/definitions/main.UrlRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/urldb.Url'
+        "400":
+          description: Bad Request
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            type: string
+      summary: Short Url
+      tags:
+      - Urls
+swagger: "2.0"

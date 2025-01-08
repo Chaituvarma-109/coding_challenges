@@ -10,13 +10,18 @@ import (
 	"log"
 	"net/http"
 
-	_ "modernc.org/sqlite"
-
 	"github.com/go-playground/validator/v10"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
+	_ "github.com/urlshortner/docs"
 	"github.com/urlshortner/urldb"
+	_ "modernc.org/sqlite"
 )
 
+// UrlRequest
+//
+//	@description	Request for creating shorturl
 type UrlRequest struct {
+	// url like "www.example.com", "www.google.com"
 	Url string `json:"url" validate:"required,url"`
 }
 
@@ -28,6 +33,10 @@ var (
 	ctx     context.Context
 )
 
+// @title			Urlshortner API
+// @version		1.0
+// @description	This is a Url Shortner api.
+// @termsOfService	http://swagger.io/terms/
 func main() {
 	ctx = context.Background()
 
@@ -52,7 +61,8 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/{surl}", redirectUrl)
+	mux.Handle("/swagger/", httpSwagger.Handler(httpSwagger.URL("http://localhost:8000/swagger/doc.json")))
+	mux.HandleFunc("GET /{surl}", redirectUrl)
 	mux.HandleFunc("POST /createurl", shortUrl)
 	mux.HandleFunc("DELETE /{durl}", deleteUrl)
 
@@ -60,22 +70,43 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8000", mux))
 }
 
+// redirectUrl
+//
+//	@Summary		Redirect Url
+//	@Description	Redirect given short Url to original or long url
+//	@Tags			Urls
+//	@Accept			json
+//	@Produce		json
+//	@Param			surl	path		string	true	"url to redirect"
+//	@Success		302		{string}	http.StatusFound
+//	@Failure		404		{string}	http.StatusNotFound
+//	@Router			/{surl} [get]
 func redirectUrl(w http.ResponseWriter, r *http.Request) {
 	surl := r.URL.Path[1:]
 
-	lurl, err := queries.SelectLongUrl(ctx, surl)
+	_, err := queries.SelectLongUrl(ctx, surl)
 	if err != nil {
-		http.Error(w, "URL not found", http.StatusBadRequest)
-		log.Fatal(err)
-		return
+		http.Error(w, "URL not found", http.StatusNotFound)
 	}
 
-	http.Redirect(w, r, lurl, http.StatusSeeOther)
+	w.WriteHeader(http.StatusFound)
 }
 
+// shortUrl
+//
+//	@Summary		Short Url
+//	@Description	Create Short Url from Long or Original Url
+//	@Tags			Urls
+//	@Accept			json
+//	@Produce		json
+//	@Param			Url	body		UrlRequest	true	"this long or original url"
+//	@Success		200	{object}	urldb.Url
+//	@Failure		400	{string}	http.StatusBadRequest
+//	@Failure		500	{string}	http.StatusInternalServerError
+//	@Router			/createurl [post]
 func shortUrl(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -113,14 +144,25 @@ func shortUrl(w http.ResponseWriter, r *http.Request) {
 	w.Write(urlResp)
 }
 
+// deleteUrl
+//
+//	@Summary		Delete Url
+//	@Description	Delete Url given its shorturl
+//	@Tags			Urls
+//	@Accept			json
+//	@Produce		json
+//	@Param			durl	path		string	true	"url to delete"
+//	@Success		200		{string}	http.StatusOK
+//	@Failure		404		{string}	http.StatusNotFound
+//	@Router			/{durl} [delete]
 func deleteUrl(w http.ResponseWriter, r *http.Request) {
 	durl := r.URL.Path[1:]
 
 	err := queries.DeleteUrl(ctx, durl)
 	if err != nil {
-		log.Fatal(err)
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
