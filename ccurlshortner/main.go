@@ -21,7 +21,7 @@ import (
 //
 //	@description	Request for creating shorturl
 type UrlRequest struct {
-	// url like "www.example.com", "www.google.com"
+	// url like "http://www.example.com", "https://www.google.com"
 	Url string `json:"url" validate:"required,url"`
 }
 
@@ -77,19 +77,26 @@ func main() {
 //	@Tags			Urls
 //	@Accept			json
 //	@Produce		json
-//	@Param			surl	path		string	true	"url to redirect"
-//	@Success		302		{string}	http.StatusFound
+//	@Param			surl	path		string		true	"url to redirect"
+//	@Success		302		{string}	Location	"Redirects to the long url"
 //	@Failure		404		{string}	http.StatusNotFound
 //	@Router			/{surl} [get]
 func redirectUrl(w http.ResponseWriter, r *http.Request) {
 	surl := r.URL.Path[1:]
 
-	_, err := queries.SelectLongUrl(ctx, surl)
+	lurl, err := queries.SelectLongUrl(ctx, surl)
 	if err != nil {
 		http.Error(w, "URL not found", http.StatusNotFound)
 	}
 
-	w.WriteHeader(http.StatusFound)
+	// Check if the request is coming from Swagger (or expects JSON)
+	if r.Header.Get("Accept") == "application/json" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusFound)
+		return
+	}
+
+	http.Redirect(w, r, lurl, http.StatusFound)
 }
 
 // shortUrl
@@ -105,8 +112,19 @@ func redirectUrl(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500	{string}	http.StatusInternalServerError
 //	@Router			/createurl [post]
 func shortUrl(w http.ResponseWriter, r *http.Request) {
-	if err := json.NewDecoder(r.Body).Decode(&u); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	// Create a JSON decoder and disallow unknown fields
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	// Decode the request into the UrlRequest struct
+	if err := decoder.Decode(&u); err != nil {
+		http.Error(w, fmt.Sprintf("Invalid request payload: %v", err), http.StatusBadRequest)
+		return
+	}
+
+	// Check if the 'url' field is empty
+	if u.Url == "" {
+		http.Error(w, "The 'url' field is required and cannot be empty", http.StatusBadRequest)
 		return
 	}
 

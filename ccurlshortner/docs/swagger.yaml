@@ -3,7 +3,7 @@ definitions:
     description: Request for creating shorturl
     properties:
       url:
-        description: url like "www.example.com", "www.google.com"
+        description: url like "http://www.example.com", "https://www.google.com"
         type: string
     required:
     - url
@@ -64,7 +64,7 @@ paths:
       - application/json
       responses:
         "302":
-          description: Found
+          description: Redirects to the long url
           schema:
             type: string
         "404":

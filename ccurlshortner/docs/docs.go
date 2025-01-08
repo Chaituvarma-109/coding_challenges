@@ -124,7 +124,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "302": {
-                        "description": "Found",
+                        "description": "Redirects to the long url",
                         "schema": {
                             "type": "string"
                         }
@@ -148,7 +148,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "url": {
-                    "description": "url like \"www.example.com\", \"www.google.com\"",
+                    "description": "url like \"http://www.example.com\", \"https://www.google.com\"",
                     "type": "string"
                 }
             }
